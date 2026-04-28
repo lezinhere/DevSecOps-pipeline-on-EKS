@@ -58,7 +58,4 @@ GitHub → Jenkins → Kubernetes Agent → Kaniko → AWS ECR
 
 ---
 
-## Author
 
-Lezin VM  
-AWS / DevOps Engineer
