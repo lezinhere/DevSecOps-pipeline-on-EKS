@@ -1,0 +1,22 @@
+# Pipeline Explanation
+
+## Checkout
+Pulls source code from GitHub repository.
+
+## Build & Test
+Uses Maven to compile and run unit tests.
+
+## Dependency Scan
+OWASP Dependency Check scans vulnerabilities in libraries.
+
+## SonarQube
+Performs static code analysis.
+
+## Dockerfile Creation
+Creates container definition dynamically.
+
+## Kaniko Build
+Builds container image without Docker daemon.
+
+## Trivy Scan
+Scans project for vulnerabilities.
