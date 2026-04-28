@@ -1,21 +1,115 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
+
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    command:
+      - /busybox/sh
+    args:
+      - -c
+      - "sleep 9999999"
+    tty: true
+"""
+        }
+    }
 
     tools {
         jdk 'jdk'
         maven 'maven'
     }
 
+    environment {
+        SONARQUBE_ENV = 'sonar'
+        IMAGE = "268140506151.dkr.ecr.ap-south-1.amazonaws.com/petclinic:latest"
+    }
+
     stages {
-        stage('Checkout') {
+
+        stage('Checkout Code') {
             steps {
                 git branch: 'main', url: 'https://github.com/spring-projects/spring-petclinic.git'
             }
         }
 
-        stage('Build') {
+        stage('Build & Unit Test') {
             steps {
-                sh 'mvn clean package'
+                sh 'mvn clean verify'
+            }
+        }
+
+        stage('Dependency Scan') {
+            steps {
+                dependencyCheck additionalArguments: '--scan .', odcInstallation: 'default'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        sh '''
+                        mvn sonar:sonar \
+                          -Dsonar.projectKey=petclinic \
+                          -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Create Dockerfile') {
+            steps {
+                sh '''
+                cat <<EOF > Dockerfile
+                FROM eclipse-temurin:17-jdk
+                WORKDIR /app
+                COPY target/spring-petclinic-*.jar app.jar
+                EXPOSE 8080
+                ENTRYPOINT ["java","-jar","app.jar"]
+                EOF
+                '''
+            }
+        }
+
+        stage('Build & Push Image (Kaniko)') {
+            steps {
+                container('kaniko') {
+                    sh '''
+                    /kaniko/executor \
+                      --dockerfile=Dockerfile \
+                      --context=$(pwd) \
+                      --destination=$IMAGE \
+                      --insecure \
+                      --skip-tls-verify
+                    '''
+                }
+            }
+        }
+
+        stage('Trivy Scan') {
+            steps {
+                sh '''
+                wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.1_Linux-64bit.tar.gz
+                tar -xzf trivy_0.50.1_Linux-64bit.tar.gz
+                ./trivy fs . > trivy-report.txt || true
+                '''
+                archiveArtifacts artifacts: 'trivy-report.txt'
             }
         }
     }
