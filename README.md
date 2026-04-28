@@ -7,7 +7,8 @@ This project demonstrates a complete cloud-native DevSecOps pipeline deployed on
 
 ## Architecture
 
-![DevSecOps Architecture](architecture/DevSecops-Pipeline.png)
+<img width="1536" height="1024" alt="DevSecops Pipeline" src="https://github.com/user-attachments/assets/64bbc53a-4e74-4ffd-8de1-de573145ccfc" />
+
 
 GitHub → Jenkins → Kubernetes Agent → Kaniko → AWS ECR  
                              ↓  
